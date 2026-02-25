@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>해누리 식단 데모</title>
+<style>
+body { font-family: sans-serif; padding:20px; max-width:600px; margin:auto; }
+.card { border:1px solid #ddd; padding:15px; margin-bottom:20px; border-radius:10px; }
+.highlight { background:#fff3cd; }
+select { padding:5px; margin-bottom:15px; }
+</style>
+</head>
+<body>
+
+<h1>🍽 해누리 식단 데모</h1>
+
+<label>이용인 선택:</label>
+<select id="userSelect">
+  <option value="">선택 안함</option>
+  <option value="김OO">김OO (우유, 밀)</option>
+  <option value="이OO">이OO (난류)</option>
+</select>
+
+<div id="result">불러오는 중...</div>
+
+<script>
+const allergyDB = {
+  "김OO": ["우유","밀"],
+  "이OO": ["난류"]
+};
+
+const ingredientMap = {
+  "우유": ["우유"],
+  "슈크림": ["난류","우유","밀"],
+  "만두": ["밀"],
+  "돈까스": ["밀"],
+  "요거트": ["우유"]
+};
+
+function checkAllergy(menu, user) {
+  if (!user) return "";
+
+  const userAllergy = allergyDB[user] || [];
+  let warnings = [];
+
+  for (let key in ingredientMap) {
+    if (menu.includes(key)) {
+      ingredientMap[key].forEach(a => {
+        if (userAllergy.includes(a)) {
+          warnings.push(a);
+        }
+      });
+    }
+  }
+
+  if (warnings.length > 0) {
+    return " ⚠ " + [...new Set(warnings)].join(", ");
+  }
+  return "";
+}
+
+async function loadFood() {
+  const today = new Date().toISOString().split('T')[0];
+  const res = await fetch(`/api/food?date=${today}`);
+  const json = await res.json();
+
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(json.content, "text/html");
+  const rows = doc.querySelectorAll("table tbody tr");
+
+  const dayIndex = new Date().getDay();
+  const columnIndex = dayIndex === 0 ? 7 : dayIndex;
+
+  const breakfast = rows[1].children[columnIndex].innerHTML;
+  const lunch = rows[2].children[columnIndex].innerHTML;
+  const dinner = rows[3].children[columnIndex].innerHTML;
+
+  const user = document.getElementById("userSelect").value;
+
+  function formatMeal(meal) {
+    return meal.split("<br>").map(m => {
+      const clean = m.replace(/&nbsp;/g,"").trim();
+      if (!clean) return "";
+      return clean + checkAllergy(clean, user);
+    }).join("<br>");
+  }
+
+  document.getElementById("result").innerHTML = `
+    <div class="card"><h3>🌅 조식</h3>${formatMeal(breakfast)}</div>
+    <div class="card"><h3>🌞 중식</h3>${formatMeal(lunch)}</div>
+    <div class="card"><h3>🌙 석식</h3>${formatMeal(dinner)}</div>
+  `;
+}
+
+document.getElementById("userSelect").addEventListener("change", loadFood);
+loadFood();
+</script>
+
+</body>
+</html>
